@@ -1,12 +1,32 @@
+import difflib
+import html
+import inspect
+import re
+
 from core.module import Module, command
 
 
 class HelpModule(Module):
     name = "Help"
-    description = "Shows loaded modules and their commands."
+    description = "Shows loaded modules and commands."
+
+    CORE_MODULES = {
+        "APIGuard",
+        "Config",
+        "Eval",
+        "Help",
+        "Info",
+        "LoaderCommands",
+        "Updater",
+        "WebAuth",
+    }
 
     def _loader(self):
         return getattr(self.client, "loader", None)
+
+    def _prefix(self):
+        loader = self._loader()
+        return html.escape(getattr(loader, "prefix", ".") if loader else ".")
 
     def _hidden_key(self):
         return "_zenkai_help_hidden"
@@ -20,122 +40,257 @@ class HelpModule(Module):
 
     def _set_hidden(self, names):
         loader = self._loader()
-        if not loader:
-            return
-        loader._module_state[self._hidden_key()] = {"items": sorted(set(names))}
+        if loader:
+            loader._module_state[self._hidden_key()] = {"items": sorted(set(names))}
 
-    def _iter_commands(self, module):
-        return sorted(
-            {
-                name
-                for name, handler in self._loader().commands.items()
-                if getattr(handler, "__self__", None) is module
-            }
+    def _module_name(self, module):
+        strings = getattr(module, "strings", {})
+        if isinstance(strings, dict) and strings.get("name"):
+            return str(strings["name"])
+        return str(getattr(module, "name", None) or module.__class__.__name__)
+
+    def _module_key(self, module):
+        return module.__class__.__name__
+
+    def _is_core(self, module):
+        return self._module_name(module) in self.CORE_MODULES or self._module_key(module) in self.CORE_MODULES
+
+    def _command_doc(self, func):
+        return (
+            getattr(func, "command_description", None)
+            or getattr(func, "description", None)
+            or inspect.getdoc(func)
+            or "Нет описания"
         )
 
+    def _primary_commands(self, module):
+        seen = set()
+        result = []
+        commands = getattr(module, "commands", {}) or {}
+        for registered_name, func in commands.items():
+            primary = getattr(func, "command_name", registered_name)
+            if registered_name != primary and primary in commands:
+                continue
+            key = id(func)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append((primary, func))
+        return sorted(result, key=lambda item: item[0].lower())
+
+    def _aliases_for(self, module, command_name, func):
+        aliases = set(getattr(func, "command_aliases", []) or [])
+        for registered_name, registered_func in (getattr(module, "commands", {}) or {}).items():
+            if registered_func is func and registered_name != command_name:
+                aliases.add(registered_name)
+        return sorted(aliases)
+
+    def _all_modules(self):
+        loader = self._loader()
+        return list(getattr(loader, "modules", []) or []) if loader else []
+
     def _find_module(self, query):
+        query = (query or "").strip()
+        if not query:
+            return None, True
+
         loader = self._loader()
         if not loader:
-            return None
+            return None, True
 
-        needle = query.strip().lower()
-        for module in loader.modules:
+        needle = query.lower().lstrip(getattr(loader, "prefix", "."))
+        for module in self._all_modules():
             candidates = {
-                module.__class__.__name__.lower(),
+                self._module_key(module).lower(),
+                self._module_name(module).lower(),
                 getattr(module, "name", "").lower(),
             }
             if needle in candidates:
-                return module
-        return None
+                return module, True
 
-    @command(name="helphide", description="Hide or unhide modules in the help list.")
+        if needle in loader.commands:
+            return getattr(loader.commands[needle], "__self__", None), True
+
+        names = [self._module_name(module) for module in self._all_modules()]
+        closest = difflib.get_close_matches(needle, [name.lower() for name in names], n=1, cutoff=0.35)
+        if closest:
+            for module in self._all_modules():
+                if self._module_name(module).lower() == closest[0]:
+                    return module, False
+
+        return None, True
+
+    def _developer(self, module):
+        source = getattr(module, "__source__", "") or ""
+        match = re.search(r"# ?meta developer: ?(.+)", source)
+        return html.escape(match.group(1).strip()) if match else None
+
+    async def _module_help(self, event, query):
+        module, exact = self._find_module(query)
+        if not module:
+            return await event.edit("🚫 <b>Модуль или команда не найдены.</b>", parse_mode="html")
+
+        prefix = self._prefix()
+        module_name = html.escape(self._module_name(module))
+        version = getattr(module, "__version__", None)
+        if version:
+            module_name = f"{module_name} (v{html.escape('.'.join(map(str, version)))})"
+
+        doc = html.escape(inspect.getdoc(module) or getattr(module, "description", "") or "Нет описания")
+        lines = []
+        for cmd_name, func in self._primary_commands(module):
+            aliases = self._aliases_for(module, cmd_name, func)
+            alias_text = ""
+            if aliases:
+                alias_text = " (" + ", ".join(f"<code>{prefix}{html.escape(alias)}</code>" for alias in aliases) + ")"
+            lines.append(
+                "▫️ <code>{}{}</code>{} {}".format(
+                    prefix,
+                    html.escape(cmd_name),
+                    alias_text,
+                    html.escape(self._command_doc(func)),
+                )
+            )
+
+        inline_handlers = getattr(module, "inline_handlers", {}) or {}
+        for name, func in inline_handlers.items():
+            lines.append(
+                "🤖 <code>@zenkai_inline_bot {}</code> {}".format(
+                    html.escape(str(name)),
+                    html.escape(inspect.getdoc(func) or "Нет описания"),
+                )
+            )
+
+        if not lines:
+            lines.append("🟠 <i>У модуля нет команд.</i>")
+
+        extra = []
+        developer = self._developer(module)
+        if developer:
+            extra.append(f"🫶 Разработчик: {developer}")
+        if not exact:
+            extra.append("☝️ <b>Точного совпадения не нашлось, показан ближайший модуль.</b>")
+        if self._is_core(module):
+            extra.append("☝️ <b>Это встроенный модуль Zenkai.</b>")
+
+        text = (
+            f"🪐 <b>{module_name}</b>:\n"
+            f"<i>ℹ️ {doc}</i>\n"
+            f"<blockquote expandable>{chr(10).join(lines)}</blockquote>"
+        )
+        if extra:
+            text += "\n" + "\n".join(extra)
+
+        await event.edit(text, parse_mode="html")
+
+    @command(name="helphide", description="Hide or show modules in .help.")
     async def helphide_cmd(self, event):
-        loader = self._loader()
-        if not loader:
-            return await event.edit("❌ Loader is not initialized.")
+        if not self._loader():
+            return await event.edit("🚫 <b>Loader не инициализирован.</b>", parse_mode="html")
 
-        args = event.raw_text.split(maxsplit=1)
-        if len(args) < 2 or not args[1].strip():
-            return await event.edit("❌ Укажи модули через пробел: `.helphide Help Ping`")
+        args = (getattr(event, "raw_text", "") or "").split(maxsplit=1)
+        modules = args[1].split() if len(args) > 1 else []
+        if not modules:
+            return await event.edit("🚫 <b>Укажи модуль(-и), которые нужно скрыть.</b>", parse_mode="html")
 
-        hidden = self._get_hidden()
-        toggled_hidden = []
-        toggled_shown = []
+        currently_hidden = self._get_hidden()
+        hidden = []
+        shown = []
 
-        for raw_name in args[1].split():
-            module = self._find_module(raw_name)
+        for raw_name in modules:
+            module, _ = self._find_module(raw_name)
             if not module:
                 continue
 
-            module_name = module.name
-            if module_name in hidden:
-                hidden.remove(module_name)
-                toggled_shown.append(module_name)
+            key = self._module_key(module)
+            if key in currently_hidden:
+                currently_hidden.remove(key)
+                shown.append(self._module_name(module))
             else:
-                hidden.add(module_name)
-                toggled_hidden.append(module_name)
+                currently_hidden.add(key)
+                hidden.append(self._module_name(module))
 
-        self._set_hidden(hidden)
+        self._set_hidden(currently_hidden)
 
-        lines = []
-        if toggled_hidden:
-            lines.append("🙈 Скрыты: " + ", ".join(f"`{name}`" for name in sorted(toggled_hidden)))
-        if toggled_shown:
-            lines.append("👁 Показаны: " + ", ".join(f"`{name}`" for name in sorted(toggled_shown)))
-        if not lines:
-            lines.append("❌ Совпадений по модулям не найдено.")
+        if not hidden and not shown:
+            return await event.edit("🚫 <b>Модули не найдены.</b>", parse_mode="html")
 
-        await event.edit("\n".join(lines))
+        hidden_text = "\n".join(f"👁‍🗨 <i>{html.escape(name)}</i>" for name in hidden)
+        shown_text = "\n".join(f"👁 <i>{html.escape(name)}</i>" for name in shown)
+        await event.edit(
+            f"<b>{len(hidden)} модулей скрыто, {len(shown)} модулей показано:</b>\n{hidden_text}\n{shown_text}",
+            parse_mode="html",
+        )
 
     @command(name="help", description="Show help for modules and commands.")
     async def help_cmd(self, event):
         loader = self._loader()
         if not loader:
-            return await event.edit("❌ Loader is not initialized.")
+            return await event.edit("🚫 <b>Loader не инициализирован.</b>", parse_mode="html")
 
-        args = event.raw_text.split(maxsplit=1)
-        query = args[1].strip() if len(args) > 1 else ""
+        raw_args = (getattr(event, "raw_text", "") or "").split(maxsplit=1)
+        args = raw_args[1].strip() if len(raw_args) > 1 else ""
+        flags = {item for item in args.split() if item.startswith("-")}
+        query = " ".join(item for item in args.split() if not item.startswith("-")).strip()
+
+        force = "-f" in flags
+        only_core = "-c" in flags
+        only_loaded = "-l" in flags
+        if only_core or only_loaded:
+            force = True
 
         if query:
-            module = self._find_module(query)
-            if not module and query in loader.commands:
-                module = getattr(loader.commands[query], "__self__", None)
-
-            if not module:
-                return await event.edit(f"❌ Модуль или команда `{query}` не найдены.")
-
-            commands = self._iter_commands(module)
-            command_lines = "\n".join(f"• `.{name}`" for name in commands) or "• Нет команд"
-            description = getattr(module, "description", "") or "Без описания"
-            text = (
-                f"📦 <b>{module.name}</b>\n"
-                f"{description}\n\n"
-                f"<b>Команды:</b>\n{command_lines}"
-            )
-            return await event.edit(text, parse_mode="html")
+            return await self._module_help(event, query)
 
         hidden = self._get_hidden()
-        rows = []
-        for module in sorted(loader.modules, key=lambda item: item.name.lower()):
-            if module.name in hidden:
+        modules = self._all_modules()
+        hidden_count = 0 if force else sum(self._module_key(module) in hidden for module in modules)
+        header = f"<b>{len(modules)} модулей доступно, {hidden_count} скрыто:</b>"
+
+        core_rows = []
+        plain_rows = []
+        empty_rows = []
+
+        for module in sorted(modules, key=lambda item: self._module_name(item).lower()):
+            if self._module_key(module) in hidden and not force:
                 continue
 
-            commands = self._iter_commands(module)
-            command_text = ", ".join(f".{name}" for name in commands) if commands else "без команд"
-            rows.append(f"• <b>{module.name}</b>: <code>{command_text}</code>")
+            commands = [name for name, _ in self._primary_commands(module)]
+            inline_handlers = list((getattr(module, "inline_handlers", {}) or {}).keys())
+            module_name = html.escape(self._module_name(module))
 
-        text = (
-            f"🜂 <b>Zenkai Modules</b>\n"
-            f"Загружено модулей: <code>{len(loader.modules)}</code>\n"
-            f"Команд: <code>{len(loader.commands)}</code>\n\n"
-            + ("\n".join(rows) if rows else "Нет загруженных модулей.")
-        )
+            if not commands and not inline_handlers:
+                empty_rows.append(f"\n🟠 <code>{module_name}</code>")
+                continue
+
+            command_text = " | ".join(html.escape(name) for name in commands)
+            inline_text = " | ".join(f"🤖 {html.escape(str(name))}" for name in inline_handlers)
+            joined = " | ".join(part for part in (command_text, inline_text) if part)
+            row = f"\n{'▪️' if self._is_core(module) else '▫️'} <code>{module_name}</code>: ( {joined} )"
+
+            if self._is_core(module):
+                core_rows.append(row)
+            else:
+                plain_rows.append(row)
+
+        visible_empty = empty_rows if force else []
+        blocks = []
+        if not only_loaded:
+            blocks.append("".join(core_rows))
+        if not only_core:
+            blocks.append("".join(plain_rows + visible_empty))
+
+        text = "🪐 " + header
+        for block in blocks:
+            if block:
+                text += f"\n<blockquote expandable>{block}</blockquote>"
+
         await event.edit(text, parse_mode="html")
 
     @command(name="support", description="Show support contact info.")
     async def support_cmd(self, event):
         await event.edit(
-            "🜂 <b>Zenkai Support</b>\n"
-            "Если модуль падает, скинь название модуля, команду и текст ошибки.",
+            "❔ <b>Zenkai Support</b>\n\n"
+            "Если модуль падает, скинь название модуля, команду и полный текст ошибки.",
             parse_mode="html",
         )
