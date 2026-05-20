@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai Phone Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="loading-overlay" id="loader">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Отправляем код в Telegram...</div>
+    </div>
+
+    <main class="auth-shell compact">
+        <section class="brand-panel">
+            <div class="brand-mark">☎</div>
+            <p class="eyebrow">Вход по номеру</p>
+            <h1>Подтверждение через Telegram</h1>
+            <p class="lead">Номер нужен только для запроса кода авторизации. Сессия сохранится локально.</p>
+            <div class="signal-grid" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <p class="eyebrow">Телефон</p>
+            <h2>Введи номер</h2>
+            <form action="/phone_submit" method="POST" onsubmit="showLoader()">
+                <label class="field">
+                    <span>Номер телефона</span>
+                    <input type="tel" name="phone" placeholder="+79991234567" required autocomplete="tel">
+                </label>
+                <button type="submit" class="btn primary" id="submitBtn"><span class="btn-icon">→</span>Получить код</button>
+            </form>
+            <a href="/" class="btn secondary"><span class="btn-icon">‹</span>Назад</a>
+        </section>
+    </main>
+
+    <script>
+        function showLoader() {
+            document.getElementById('loader').classList.add('active');
+            document.getElementById('submitBtn').classList.add('loading');
+        }
+    </script>
+</body>
+</html>

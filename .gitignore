@@ -1,0 +1,56 @@
+# Python cache and local environments
+__pycache__/
+*__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.venv/
+venv/
+env/
+ENV/
+
+# Local secrets and Telegram auth state
+.env
+*.env
+api_token.txt
+web_credentials.json
+zenkai_config.json
+config.json
+config-*.json
+*.session
+*.session-journal
+*.session-*
+*.session*
+
+# Local databases and runtime storage
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
+database.json
+database-*.json
+storage.json
+storage-*.json
+zenkai_module_state.json
+
+# Legacy files not used by the Zenkai runtime
+heroku_info.py
+
+# Runtime logs and generated files
+*.log
+*.out
+unknown_errors.txt
+ftg-install.log
+loaded_modules/
+debug_modules/
+.setup_complete
+
+# IDE and OS noise
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini

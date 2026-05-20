@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai Web</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="brand-panel">
+            <div class="brand-mark">E</div>
+            <p class="eyebrow">Zenkai Userbot</p>
+            <h1>Вход в реальный Telegram-аккаунт</h1>
+            <p class="lead">Подключи сессию через QR или номер телефона. После входа бот продолжит запуск уже от твоего аккаунта.</p>
+            <div class="signal-grid" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            {% if authorized %}
+                <div class="status-pill success">Аккаунт подключён</div>
+                <div class="profile">
+                    <div class="avatar">{{ account.initials }}</div>
+                    <div>
+                        <h2>{{ account.full_name }}</h2>
+                        <p>{{ account.username }} · ID {{ account.user_id }}</p>
+                    </div>
+                </div>
+                <dl class="account-list">
+                    <div>
+                        <dt>Телефон</dt>
+                        <dd>{{ account.phone }}</dd>
+                    </div>
+                    <div>
+                        <dt>Premium</dt>
+                        <dd>{% if account.premium %}Да{% else %}Нет{% endif %}</dd>
+                    </div>
+                </dl>
+                <p class="muted">Готово. Это окно можно закрыть, запуск Zenkai продолжится в консоли.</p>
+            {% else %}
+                <p class="eyebrow">Авторизация</p>
+                <h2>Выбери способ входа</h2>
+                <p class="muted">QR быстрее всего. Номер телефона пригодится, если под рукой нет активного Telegram-клиента.</p>
+
+                <div class="action-stack">
+                    <a href="/qr" class="btn primary"><span class="btn-icon">▦</span>Войти через QR</a>
+                    <a href="/phone" class="btn secondary"><span class="btn-icon">☎</span>Войти по номеру</a>
+                </div>
+
+                <div class="hint-row">
+                    <span></span>
+                    <p>API ключи уже сохранены</p>
+                    <span></span>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

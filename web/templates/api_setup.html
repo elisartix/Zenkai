@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenkai API Setup</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="loading-overlay" id="loader">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Сохраняем API ключи...</div>
+    </div>
+
+    <main class="auth-shell">
+        <section class="brand-panel">
+            <div class="brand-mark">E</div>
+            <p class="eyebrow">Первый запуск</p>
+            <h1>Подключение Telegram API</h1>
+            <p class="lead">Введи API ID и API HASH с my.telegram.org. Они сохранятся локально и не попадут в git.</p>
+            <div class="signal-grid" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <p class="eyebrow">Настройка</p>
+            <h2>API данные</h2>
+            {% if error %}
+                <p class="error">Проверь API ID и API HASH, затем попробуй ещё раз.</p>
+            {% endif %}
+            <form action="/api_submit" method="POST" onsubmit="showLoader()">
+                <label class="field">
+                    <span>API ID</span>
+                    <input type="number" name="api_id" placeholder="123456" required autocomplete="off">
+                </label>
+                <label class="field">
+                    <span>API HASH</span>
+                    <input type="text" name="api_hash" placeholder="0123456789abcdef0123456789abcdef" required autocomplete="off">
+                </label>
+                <button type="submit" class="btn primary" id="submitBtn"><span class="btn-icon">✓</span>Сохранить</button>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        function showLoader() {
+            document.getElementById('loader').classList.add('active');
+            document.getElementById('submitBtn').classList.add('loading');
+        }
+    </script>
+</body>
+</html>
