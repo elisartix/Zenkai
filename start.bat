@@ -1,5 +1,5 @@
 @echo off
 title Zenkai Userbot
 echo Starting Zenkai Userbot...
-py main.py
+py -m Zenkai
 pause
