@@ -123,8 +123,11 @@ async def main():
         logger.info("Preparing inline manager...")
         inline_mgr = ZenkaiInlineManager(api_id, api_hash, bot_token, client)
         client.inline_manager = inline_mgr
+        loader.inline = inline_mgr
         logger.info("Starting inline manager startup sequence...")
         await inline_mgr.start()
+        for module in getattr(loader, "modules", []):
+            module.inline = inline_mgr
         logger.info("Inline manager startup sequence completed.")
         
         # Start the dialog with the bot and keep Zenkai chats grouped in a folder

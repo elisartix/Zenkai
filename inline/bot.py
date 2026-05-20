@@ -1,9 +1,12 @@
 import html
+import inspect
 import logging
 import secrets
 
 from telethon import Button, TelegramClient, events
 from telethon.tl import types as tl_types
+
+from inline.types import InlineCall, InlineQuery
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ class ZenkaiInlineManager:
         self.input_map = {}
         self.bot_username = None
         self.bot_id = None
+        self.init_complete = False
 
     def _rand(self, size=16):
         return secrets.token_hex(size // 2 + 1)[:size]
@@ -46,6 +50,7 @@ class ZenkaiInlineManager:
         self.bot.add_event_handler(self.handle_callback, events.CallbackQuery)
         self.bot.add_event_handler(self.handle_inline, events.InlineQuery)
         self.bot.add_event_handler(self.handle_raw, events.Raw(types=tl_types.UpdateBotInlineSend))
+        self.init_complete = True
         logger.info("Inline Bot started successfully.")
 
     def register_callback(self, data_prefix, handler):
@@ -83,11 +88,67 @@ class ZenkaiInlineManager:
             if meta.get("unit_id") == unit_id:
                 del self.input_map[token]
 
+    def _normalize_markup(self, reply_markup):
+        if not reply_markup:
+            return []
+        if isinstance(reply_markup, dict):
+            return [[reply_markup]]
+        if isinstance(reply_markup, list) and any(isinstance(item, dict) for item in reply_markup):
+            return [reply_markup]
+        return reply_markup
+
+    def build_buttons(self, reply_markup):
+        if not reply_markup:
+            return None
+
+        markup = []
+        for row in self._normalize_markup(reply_markup):
+            built_row = []
+            for button in row:
+                if not isinstance(button, dict):
+                    continue
+
+                text = button.get("text", "Button")
+                if button.get("action") == "close":
+                    token = self._rand()
+                    self.callback_map[token] = {
+                        "handler": self._close_unit,
+                        "args": (),
+                        "kwargs": {},
+                    }
+                    built_row.append(Button.inline(text, token.encode("utf-8")))
+                elif "callback" in button:
+                    token = self._rand()
+                    self.callback_map[token] = {
+                        "handler": button["callback"],
+                        "args": tuple(button.get("args", ()) or ()),
+                        "kwargs": dict(button.get("kwargs", {}) or {}),
+                    }
+                    built_row.append(Button.inline(text, token.encode("utf-8")))
+                elif "data" in button:
+                    data = button["data"]
+                    built_row.append(Button.inline(text, data if isinstance(data, bytes) else str(data).encode("utf-8")))
+                elif "input" in button and "handler" in button:
+                    token = self._rand(10)
+                    self.input_map[token] = {
+                        "handler": button["handler"],
+                        "prompt": button["input"],
+                        "args": tuple(button.get("args", ()) or ()),
+                        "kwargs": dict(button.get("kwargs", {}) or {}),
+                    }
+                    built_row.append(Button.switch_inline(text, f"{token} ", same_peer=True))
+                elif "url" in button:
+                    built_row.append(Button.url(text, button["url"]))
+            if built_row:
+                markup.append(built_row)
+
+        return markup or None
+
     def _build_markup(self, unit_id):
         self._clear_unit_tokens(unit_id)
         unit = self.units[unit_id]
         markup = []
-        for row in unit.get("buttons", []):
+        for row in self._normalize_markup(unit.get("buttons", [])):
             built_row = []
             for button in row:
                 text = button.get("text", "Button")
@@ -111,6 +172,11 @@ class ZenkaiInlineManager:
                         "kwargs": dict(button.get("kwargs", {}) or {}),
                     }
                     built_row.append(Button.inline(text, token.encode("utf-8")))
+                    continue
+
+                if "data" in button:
+                    data = button["data"]
+                    built_row.append(Button.inline(text, data if isinstance(data, bytes) else str(data).encode("utf-8")))
                     continue
 
                 if "input" in button and "handler" in button:
@@ -174,11 +240,12 @@ class ZenkaiInlineManager:
 
     async def handle_callback(self, event):
         data = event.data.decode("utf-8")
+        call = InlineCall(event, self)
 
         callback = self.callback_map.get(data)
         if callback:
             try:
-                await callback["handler"](event, *callback["args"], **callback["kwargs"])
+                await callback["handler"](call, *callback["args"], **callback["kwargs"])
             except Exception as e:
                 logger.error("Inline callback failed: %s", e)
                 await event.answer(f"Error: {e}", alert=True)
@@ -186,8 +253,23 @@ class ZenkaiInlineManager:
 
         for prefix, handler in self.handlers.items():
             if data.startswith(prefix):
-                await handler(event)
+                await handler(call)
                 return
+
+        loader = getattr(self.userbot, "loader", None) if self.userbot else None
+        handled_by_module = False
+        for handler in getattr(loader, "callback_handlers", {}).values() if loader else []:
+            try:
+                result = handler(call)
+                if inspect.isawaitable(result):
+                    await result
+                handled_by_module = True
+            except Exception as e:
+                logger.error("Module inline callback failed: %s", e)
+                await event.answer(f"Error: {e}", alert=True)
+                return
+        if handled_by_module:
+            return
 
         await event.answer("Unknown action.")
 
@@ -245,6 +327,38 @@ class ZenkaiInlineManager:
         results = []
         if self.userbot and hasattr(self.userbot, "loader") and self.userbot.loader:
             loader = self.userbot.loader
+            cmd = lowered.split()[0] if lowered else ""
+            inline_handler = getattr(loader, "inline_handlers", {}).get(cmd)
+            if inline_handler:
+                inline_query = InlineQuery(event)
+                try:
+                    handler_result = inline_handler(inline_query)
+                    if inspect.isawaitable(handler_result):
+                        handler_result = await handler_result
+                except Exception as e:
+                    logger.error("Module inline handler failed: %s", e)
+                    await inline_query.e500()
+                    return
+
+                if handler_result:
+                    if isinstance(handler_result, dict):
+                        handler_result = [handler_result]
+                    for item in handler_result:
+                        if not isinstance(item, dict) or "message" not in item:
+                            continue
+                        results.append(
+                            builder.article(
+                                item.get("title", cmd or "Zenkai"),
+                                description=item.get("description", ""),
+                                text=item["message"],
+                                parse_mode="html",
+                                buttons=self.build_buttons(item.get("reply_markup")),
+                            )
+                        )
+                    if results:
+                        await event.answer(results, cache_time=0)
+                        return
+
             if lowered:
                 for mod in loader.modules:
                     if lowered in mod.name.lower() or lowered in (mod.description or "").lower():

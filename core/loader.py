@@ -42,6 +42,9 @@ class Loader:
         self.prefix = prefix
         self.modules = []  # list of module instances
         self.commands = {}  # command_name -> bound method
+        self.inline_handlers = {}
+        self.callback_handlers = {}
+        self.inline = None
         self._handler_registered = False
         self._state_path = "zenkai_module_state.json"
         self._module_state = self._load_state()
@@ -292,6 +295,10 @@ class Loader:
 
             instance.inline = _MockInline()
 
+        live_inline = self.inline or getattr(self.client, "inline_manager", None)
+        if live_inline is not None:
+            instance.inline = live_inline
+
         class _AllModulesProxy:
             @property
             def commands(self_inner):
@@ -307,6 +314,22 @@ class Loader:
 
             @modules.setter
             def modules(self_inner, value):
+                return None
+
+            @property
+            def inline_handlers(self_inner):
+                return self.inline_handlers
+
+            @inline_handlers.setter
+            def inline_handlers(self_inner, value):
+                return None
+
+            @property
+            def callback_handlers(self_inner):
+                return self.callback_handlers
+
+            @callback_handlers.setter
+            def callback_handlers(self_inner, value):
                 return None
 
             async def check_security(self_inner, message, func):
@@ -443,9 +466,23 @@ class Loader:
         def callback_handler(*args, **kwargs):
             def decorator(func):
                 func.is_callback_handler = True
+                func.callback_handler_name = kwargs.get("name") or func.__name__
                 return func
             return decorator
         shim.callback_handler = callback_handler
+
+        def inline_handler(*args, **kwargs):
+            def decorator(func):
+                func.is_inline_handler = True
+                raw = func.__name__
+                name = kwargs.get("name", raw)
+                if name == raw and raw.endswith("_inline_handler"):
+                    name = raw[:-15]
+                name = name.strip("_") or raw
+                func.inline_handler_name = name
+                return func
+            return decorator
+        shim.inline_handler = inline_handler
 
         def watcher(*args, **kwargs):
             def decorator(func):
@@ -701,10 +738,26 @@ class Loader:
         
         async def answer(message, text, **kwargs):
             """Heroku-style utils.answer — edits if outgoing, replies otherwise."""
+            reply_markup = kwargs.pop("reply_markup", None)
+            if reply_markup:
+                client = getattr(message, "client", None) or getattr(message, "_client", None)
+                loader = getattr(client, "loader", None)
+                inline = getattr(loader, "inline", None) or getattr(client, "inline_manager", None)
+                if inline and getattr(inline, "init_complete", False):
+                    try:
+                        return await inline.form(
+                            text,
+                            message=message,
+                            reply_markup=inline._normalize_markup(reply_markup),
+                            silent=bool(kwargs.pop("silent", False)),
+                        )
+                    except Exception:
+                        logger.debug("Failed to answer via inline form", exc_info=True)
+
             try:
-                return await message.edit(text, parse_mode="html")
+                return await message.edit(text, parse_mode="html", **kwargs)
             except Exception:
-                return await message.respond(text, parse_mode="html")
+                return await message.respond(text, parse_mode="html", **kwargs)
         
         def get_args_raw(message):
             """Extract raw args from a message."""
@@ -859,10 +912,15 @@ class Loader:
                 # mock inline
                 inline_mod = types.ModuleType(f"{root_pkg}.inline")
                 inline_mod.types = types.ModuleType(f"{root_pkg}.inline.types")
-                class InlineCall: pass
+                try:
+                    from inline.types import InlineCall, InlineMessage, InlineQuery
+                except Exception:
+                    class InlineCall: pass
+                    class InlineMessage: pass
+                    class InlineQuery: pass
                 inline_mod.types.InlineCall = InlineCall
-                inline_mod.types.InlineQuery = InlineCall
-                inline_mod.types.InlineMessage = InlineCall
+                inline_mod.types.InlineQuery = InlineQuery
+                inline_mod.types.InlineMessage = InlineMessage
                 root.inline = inline_mod
                 sys.modules[f"{root_pkg}.inline"] = inline_mod
                 sys.modules[f"{root_pkg}.inline.types"] = inline_mod.types
@@ -872,6 +930,13 @@ class Loader:
                 root = sys.modules[root_pkg]
                 root.loader = shim_loader
                 root.utils = shim_utils
+                try:
+                    from inline.types import InlineCall, InlineMessage, InlineQuery
+                    root.inline.types.InlineCall = InlineCall
+                    root.inline.types.InlineQuery = InlineQuery
+                    root.inline.types.InlineMessage = InlineMessage
+                except Exception:
+                    pass
             
             # Sub-package (where modules "live")
             if sub_pkg not in sys.modules:
@@ -1013,11 +1078,22 @@ class Loader:
                             getattr(getattr(v, '__self__', None), 'name', None) == instance.name]
                 for k in old_cmds:
                     del self.commands[k]
+                old_inline = [k for k, v in self.inline_handlers.items()
+                              if getattr(v, '__self__', None) and
+                              getattr(getattr(v, '__self__', None), 'name', None) == instance.name]
+                for k in old_inline:
+                    del self.inline_handlers[k]
+                old_callbacks = [k for k, v in self.callback_handlers.items()
+                                 if getattr(v, '__self__', None) and
+                                 getattr(getattr(v, '__self__', None), 'name', None) == instance.name]
+                for k in old_callbacks:
+                    del self.callback_handlers[k]
                 
                 self.modules.append(instance)
                 
                 # Extract commands (support both decorators)
                 instance.commands = {}
+                instance.inline_handlers = {}
                 instance.callback_handlers = {}
                 for method_name, method in inspect.getmembers(instance, predicate=callable):
                     is_command = getattr(method, 'is_command', False)
@@ -1037,8 +1113,18 @@ class Loader:
                         for alias in getattr(method, 'command_aliases', []):
                             instance.commands[alias] = method
                             self.commands[alias] = method
+                    if getattr(method, 'is_inline_handler', False) or method_name.endswith("_inline_handler"):
+                        inline_name = getattr(method, "inline_handler_name", None)
+                        if not inline_name:
+                            inline_name = method_name[:-15] if method_name.endswith("_inline_handler") else method_name
+                        inline_name = inline_name.strip("_").lower()
+                        if inline_name:
+                            instance.inline_handlers[inline_name] = method
+                            self.inline_handlers[inline_name] = method
                     if getattr(method, 'is_callback_handler', False):
-                        instance.callback_handlers[method_name] = method
+                        callback_name = getattr(method, "callback_handler_name", method_name)
+                        instance.callback_handlers[callback_name] = method
+                        self.callback_handlers[callback_name] = method
                 
                 # Mock allmodules populating
                 for m in self.modules:
